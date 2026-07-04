@@ -14,7 +14,7 @@ def conectar_bd():
 
 def descargar_marcaciones():
     # IP del F22 en la red local de Cáritas
-    zk = ZK('192.168.15.50', port=4370, timeout=10, password=0, force_udp=False)
+    zk = ZK('192.168.15.222', port=4370, timeout=10, password=0, force_udp=False)
     conn = None
     db_conn = None
     
