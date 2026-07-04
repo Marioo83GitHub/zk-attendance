@@ -10,7 +10,7 @@ app = Flask(__name__)
 def descargar_csv():
     # Usamos la IP .222 que confirmaste que responde
     # force_udp=False porque Test-NetConnection ya nos confirmó que el puerto TCP está abierto
-    zk = ZK('192.168.15.222', port=4370, timeout=15, password=0, force_udp=False)
+    zk = ZK('192.168.15.222', port=4370, timeout=15, password=0, force_udp=True)
     conn = None
     
     try:
