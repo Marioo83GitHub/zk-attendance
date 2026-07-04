@@ -25,7 +25,7 @@ from typing import List, Optional, Generator, Dict, Any
 
 from flask import Flask, jsonify, request, Response, send_file
 from zk import ZK, const
-from zk.exception ZKErrorResponse
+from zk.exception import ZKErrorResponse
 
 # ============================================================================
 # CONFIGURACIÓN
