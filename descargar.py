@@ -8,14 +8,19 @@ app = Flask(__name__)
 
 @app.route('/descargar')
 def descargar_csv():
-    # Usamos la IP .222 que confirmaste que responde
-    # force_udp=False porque Test-NetConnection ya nos confirmó que el puerto TCP está abierto
-    zk = ZK('192.168.15.222', port=4370, timeout=15, password=0, force_udp=True)
+    # IP fija .222. force_udp=False es lo estándar para TCP. 
+    # password=0 es el estándar de ZKTeco cuando no hay clave.
+    zk = ZK('192.168.15.222', port=4370, timeout=10, password=0, force_udp=False)
     conn = None
     
     try:
         print("Intentando conectar al F22...")
         conn = zk.connect()
+        
+        # Test de conexión para verificar que el socket esté realmente estable
+        conn.test_connect()
+        
+        # Deshabilitar dispositivo para lectura segura
         conn.disable_device()
         
         print("Conexión exitosa. Extrayendo marcaciones...")
@@ -25,12 +30,16 @@ def descargar_csv():
         output = io.StringIO()
         writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_MINIMAL)
         
-        # Cabecera para Excel en español
+        # Cabecera para Excel
         writer.writerow(['ID Empleado', 'Fecha y Hora', 'Tipo Marcacion'])
         
         for att in attendances:
-            tipo = "Entrada" if att.punch == 0 else "Salida" if att.punch == 1 else att.punch
-            writer.writerow([att.user_id, att.timestamp.strftime('%Y-%m-%d %H:%M:%S'), tipo])
+            # Tipos comunes: 0=Entrada, 1=Salida, 2=Check-in, 3=Check-out
+            # Si el F22 devuelve otro valor, lo ponemos tal cual
+            tipo_map = {0: 'Entrada', 1: 'Salida', 2: 'Check-in', 3: 'Check-out'}
+            tipo_texto = tipo_map.get(att.punch, f"Tipo {att.punch}")
+            
+            writer.writerow([att.user_id, att.timestamp.strftime('%Y-%m-%d %H:%M:%S'), tipo_texto])
             
         output.seek(0)
         nombre_archivo = f"Asistencia_Caritas_{datetime.now().strftime('%d-%m-%Y_%H-%M')}.csv"
@@ -48,10 +57,13 @@ def descargar_csv():
         
     finally:
         if conn:
-            conn.enable_device()
-            conn.disconnect()
+            try:
+                conn.enable_device()
+                conn.disconnect()
+            except:
+                pass
 
 if __name__ == '__main__':
     print("Iniciando servidor local de asistencia...")
-    # Corre en el puerto 8000 para no chocar con nada más en el servidor
+    # host='0.0.0.0' para que otras PCs de la red puedan verlo
     app.run(host='0.0.0.0', port=8000)
