@@ -32,7 +32,7 @@ from zk.exception import ZKErrorResponse
 # ============================================================================
 
 APP_CONFIG = {
-    "DEVICE_IP": os.getenv("ZK_IP", "192.168.1.222"),
+    "DEVICE_IP": os.getenv("ZK_IP", "192.168.15.222"),
     "DEVICE_PORT": int(os.getenv("ZK_PORT", 4370)),
     "COMM_KEY": int(os.getenv("ZK_COMM_KEY", 0)),  # Comm Key del F22
     "TIMEOUT": 10,
