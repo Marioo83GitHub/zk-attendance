@@ -1,72 +1,57 @@
-from zk import ZK, const
-import psycopg2
+from flask import Flask, Response
+from zk import ZK
+import csv
+import io
 from datetime import datetime
 
-def conectar_bd():
-    # Conexión a tu PostgreSQL local
-    return psycopg2.connect(
-        dbname="asistencia_caritas",
-        user="postgres",
-        password="tu_password",
-        host="127.0.0.1",
-        port="5432"
-    )
+app = Flask(__name__)
 
-def descargar_marcaciones():
-    # IP del F22 en la red local de Cáritas
-    zk = ZK('192.168.15.222', port=4370, timeout=10, password=0, force_udp=False)
+@app.route('/descargar')
+def descargar_csv():
+    # Usamos la IP .222 que confirmaste que responde
+    # force_udp=False porque Test-NetConnection ya nos confirmó que el puerto TCP está abierto
+    zk = ZK('192.168.15.222', port=4370, timeout=15, password=0, force_udp=False)
     conn = None
-    db_conn = None
     
     try:
-        print("Conectando al F22...")
+        print("Intentando conectar al F22...")
         conn = zk.connect()
-        
-        # Deshabilitar el reloj temporalmente mientras lee para evitar errores
         conn.disable_device()
         
-        print("Obteniendo registros de asistencia...")
+        print("Conexión exitosa. Extrayendo marcaciones...")
         attendances = conn.get_attendance()
         
-        # Conectar a PostgreSQL para guardar
-        db_conn = conectar_bd()
-        cursor = db_conn.cursor()
+        # Crear el CSV en memoria
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_MINIMAL)
         
-        registros_nuevos = 0
+        # Cabecera para Excel en español
+        writer.writerow(['ID Empleado', 'Fecha y Hora', 'Tipo Marcacion'])
         
         for att in attendances:
-            # att.user_id: ID del empleado
-            # att.timestamp: Fecha y hora exacta (datetime)
-            # att.punch: Tipo (Entrada=0, Salida=1, etc.)
+            tipo = "Entrada" if att.punch == 0 else "Salida" if att.punch == 1 else att.punch
+            writer.writerow([att.user_id, att.timestamp.strftime('%Y-%m-%d %H:%M:%S'), tipo])
             
-            # Usamos un INSERT con ON CONFLICT para evitar duplicados 
-            # si el script lee las mismas marcaciones en la siguiente ejecución
-            query = """
-                INSERT INTO marcaciones (empleado_id, fecha_hora, tipo_marcacion) 
-                VALUES (%s, %s, %s)
-                ON CONFLICT (empleado_id, fecha_hora) DO NOTHING;
-            """
-            cursor.execute(query, (att.user_id, att.timestamp, att.punch))
-            
-            # Si el rowcount es 1, significa que fue un registro nuevo insertado
-            if cursor.rowcount == 1:
-                registros_nuevos += 1
-                
-        db_conn.commit()
-        print(f"Sincronización completa. {registros_nuevos} registros nuevos guardados.")
+        output.seek(0)
+        nombre_archivo = f"Asistencia_Caritas_{datetime.now().strftime('%d-%m-%Y_%H-%M')}.csv"
         
-        # Habilitar el reloj nuevamente
-        conn.enable_device()
+        print("CSV generado. Enviando al usuario...")
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-disposition": f"attachment; filename={nombre_archivo}"}
+        )
         
     except Exception as e:
-        print(f"Error en la conexión o guardado: {e}")
+        print(f"Error detectado: {str(e)}")
+        return f"Error al conectar con el reloj F22: {str(e)}", 500
         
     finally:
         if conn:
+            conn.enable_device()
             conn.disconnect()
-        if db_conn:
-            cursor.close()
-            db_conn.close()
 
-if __name__ == "__main__":
-    descargar_marcaciones()
+if __name__ == '__main__':
+    print("Iniciando servidor local de asistencia...")
+    # Corre en el puerto 8000 para no chocar con nada más en el servidor
+    app.run(host='0.0.0.0', port=8000)
